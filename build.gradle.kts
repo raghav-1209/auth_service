@@ -11,6 +11,12 @@ application {
     mainClass = "io.ktor.server.netty.EngineMain"
 }
 
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+
+
 kotlin {
     jvmToolchain(17)
 }
@@ -36,4 +42,9 @@ dependencies {
     implementation("io.ktor:ktor-client-cio:3.4.2")
     implementation("io.ktor:ktor-client-content-negotiation:3.4.2")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.4.2")
+    implementation("com.raghav:jwt_lib:1.0.0")
+    implementation(libs.postgresql)
+    implementation(libs.h2)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
 }

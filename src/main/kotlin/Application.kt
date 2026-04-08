@@ -1,5 +1,7 @@
 package com
 
+import com.databases.DataBaseConfig
+import com.databases.DataBaseFactory
 import com.dataclasses.JwtConfig
 import io.ktor.server.application.*
 
@@ -13,13 +15,9 @@ fun Application.module() {
     configResource()
     configStaticResource()
     configStatusPages()
-    val jwtSection = environment.config.config("jwt")
-    val jwtConfig = JwtConfig(
-        issuer = jwtSection.property("issuer").getString(),
-        audience = jwtSection.property("audience").getString(),
-        realm = jwtSection.property("realm").getString(),
-        secret = jwtSection.property("secret").getString()
-    )
-    configureAuth(jwtConfig)
-    configureRouting(jwtConfig)
+    val dataBaseFac= DataBaseFactory()
+    dataBaseFac.init()
+    val database=dataBaseFac.database
+    val dataBaseConfig= DataBaseConfig(database)
+    configureRouting(dataBaseConfig)
 }

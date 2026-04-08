@@ -1,9 +1,9 @@
 package com.dataclasses
 
 import kotlinx.serialization.Serializable
+
 @Serializable
-data class SignInData(
+data class LoginData(
     val email: String,
-    val name: String,
-    val uid: String
+    val password: String
 )
