@@ -1,7 +1,9 @@
 package com.databases
 
+import com.databases.Tables.RefreshTokens.revoked
 import com.dataclasses.FcmData
 import com.dataclasses.RefreshToken
+import com.dataclasses.RefreshTokenEntity
 import com.dataclasses.SignInData
 import org.h2.engine.User
 import org.jetbrains.exposed.sql.Database
@@ -9,7 +11,9 @@ import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
 import org.jetbrains.exposed.sql.upsert
+import java.security.MessageDigest
 
 class DataBaseConfig (val database: Database) {
     fun saveUser(user: SignInData): Boolean {
@@ -27,8 +31,9 @@ class DataBaseConfig (val database: Database) {
             }
 
         }
+        }
 
-    }
+
     fun ResultRow.toUser() = SignInData(
         email = this[Tables.users.email],
         name = this[Tables.users.name],
@@ -44,21 +49,7 @@ class DataBaseConfig (val database: Database) {
                 ?.toUser()
         }
     }
-    fun saveRefreshToken(token: RefreshToken): Boolean {
-        return transaction(database) {
-            try {
-                transaction(database) {
-                    Tables.jwt_Token.upsert {
-                        it[user_uid] = token.uid
-                        it[this.token] = token.refreshToken
-                    }
-                }
-                true
-            } catch (e: Exception) {
-                false
-            }
-        }
-    }
+
     fun saveFcmToken(token: FcmData): Boolean {
         return transaction(database) {
             try {
@@ -74,16 +65,64 @@ class DataBaseConfig (val database: Database) {
 
         }
     }
-    fun ResultRow.toRefreshToken()= RefreshToken(
-        uid = this[Tables.jwt_Token.user_uid],
-        refreshToken = this[Tables.jwt_Token.token]
-    )
-    fun getRefreshToken(token: String): RefreshToken? {
-        return transaction (database) {
-                Tables.jwt_Token.selectAll().where{
-                    Tables.jwt_Token.token eq token
-                }.singleOrNull()?.toRefreshToken()
-
+    fun saveRefreshToken(tokenData: RefreshToken): Boolean {
+        return transaction(database) {
+            try {
+                Tables.RefreshTokens.insert {
+                    it[userUid] = tokenData.uid
+                    it[tokenHash] = tokenData.hashToken
+                    it[expiresAt] = tokenData.expiresAt
+                    it[createdAt] = System.currentTimeMillis()
+                    it[revoked] = false
+                }
+                true
+            } catch (e: Exception) {
+                false
+            }
         }
     }
+    fun  ResultRow.toEntity(): RefreshTokenEntity {
+        return RefreshTokenEntity(
+            hashToken = this[Tables.RefreshTokens.tokenHash],
+            expiresAt = this[Tables.RefreshTokens.expiresAt],
+            uid = this[Tables.RefreshTokens. userUid],
+            revoked = this[Tables.RefreshTokens.revoked],
+            createdAt = this[Tables.RefreshTokens.createdAt],
+            id = this[Tables.RefreshTokens.id]
+
+
+        )
+    }
+    fun getRefreshToken(hash: String): RefreshTokenEntity? {
+        return transaction(database) {
+            Tables.RefreshTokens
+                .selectAll()
+                .where { Tables.RefreshTokens.tokenHash eq hash }
+                .singleOrNull()
+                ?.toEntity()
+        }
+    }
+
+    fun rotateToken(oldId: Int, newToken: RefreshToken) {
+        transaction(database) {
+            Tables.RefreshTokens.update({ Tables.RefreshTokens.id eq oldId }) {
+                it[revoked] = true
+            }
+
+            Tables.RefreshTokens.insert {
+                it[userUid] = newToken.uid
+                it[tokenHash] = newToken.hashToken
+                it[expiresAt] = newToken.expiresAt
+                it[createdAt] = System.currentTimeMillis()
+                it[revoked] = false
+            }
+        }
+    }
+
+}
+fun hash(token: String): String {
+    return MessageDigest
+        .getInstance("SHA-256")
+        .digest(token.toByteArray())
+        .joinToString("") { "%02x".format(it) }
 }

@@ -12,12 +12,23 @@ object Tables {
     }
     object fcmTokens : Table("auth.fcm_tokens") {
         val id = integer("id").autoIncrement()
-        val user_uid=reference("user_id", Tables.users.uid).uniqueIndex()
-        val token=text("fcm_token")
+        val user_uid=reference("user_id", Tables.users.uid)
+        val token=text("fcm_token").uniqueIndex()
     }
-    object jwt_Token :Table("auth.jwt_token") {
+    object RefreshTokens : Table("auth.refresh_tokens") {
         val id = integer("id").autoIncrement()
-        val user_uid=reference("user_id", Tables.users.uid).uniqueIndex()
-        val token = text("refresh_token")
+
+        val userUid = reference("user_id", Tables.users.uid)
+
+        val tokenHash = text("token_hash")
+
+        val expiresAt = long("expires_at")
+
+        val createdAt = long("created_at")
+
+        val revoked = bool("revoked").default(false)
+
+
+        override val primaryKey = PrimaryKey(id)
     }
 }

@@ -1,6 +1,7 @@
 package com
 
 import com.databases.DataBaseConfig
+import com.databases.hash
 import com.dataclasses.FcmData
 import com.dataclasses.Info
 import com.dataclasses.LoginData
@@ -18,6 +19,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.example.com.raghav.jwt.JwtService
 import org.h2.engine.User
+import java.security.SecureRandom
 import java.util.*
 
 
@@ -38,25 +40,25 @@ fun Routing.configAuth(dataBaseConfig: DataBaseConfig) {
             try {
                 val data = call.receive<SignInData>() ?: return@post
                 println(data.email)
-                val response=dataBaseConfig.saveUser(data)
-                if(response){
+                val response = dataBaseConfig.saveUser(data)
+                if (response) {
                     println("Successfully saved in!")
-                }else{
+                } else {
                     println("Error saving in!")
                 }
+                val session = generateSession(data.uid, dataBaseConfig)
 
-                val randomToken = UUID.randomUUID().toString()
-                val accessToken = JwtService.generateToken(data.uid)
-                val isSaved= dataBaseConfig.saveRefreshToken(RefreshToken(randomToken,data.uid))
-                if(!isSaved) {
-                    println("cannot Insert in db a refreshttoken")
+                if (session == null) {
+                    call.respond(HttpStatusCode.InternalServerError, "Session creation failed")
+                    return@post
                 }
-                println("The server sends jwttoen to client ${accessToken}")
-                call.respond(UserSession(randomToken, accessToken))
+
+                call.respond(HttpStatusCode.OK, session)
             }catch (e: Exception) {
                 println(e.localizedMessage)
             }
         }
+
         post("/login"){
             val data=call.receive<LoginData>()
             val userInfo=dataBaseConfig.getEmail(data.email)
@@ -64,29 +66,70 @@ fun Routing.configAuth(dataBaseConfig: DataBaseConfig) {
                 call.respond(status = HttpStatusCode.BadRequest, message = "Email is required")
                 return@post
             }
-            val randomToken = UUID.randomUUID().toString()
-            val accessToken = JwtService.generateToken(userInfo.uid)
-            val isSaved= dataBaseConfig.saveRefreshToken(RefreshToken(randomToken,userInfo.uid))
-            if(isSaved) {
-                println("cannot Insert in db a refreshttoken")
-            }
-            println("The server sends jwttoen to client ${accessToken}")
-            call.respond(UserSession(randomToken, accessToken))
+            val session = generateSession(userInfo.uid, dataBaseConfig)
 
-
-        }
-        post("/refreshToken") {
-            println("The RefrshFun Called")
-            val data=call.receive<Info>()?:return@post
-            val isExit=dataBaseConfig.getRefreshToken(data.token)
-            if(isExit==null){
-                call.respond(HttpStatusCode.Conflict, message = "Unauthorized USer")
+            if (session == null) {
+                call.respond(HttpStatusCode.InternalServerError, "Session creation failed")
                 return@post
             }
-            val refreshToken= UUID.randomUUID().toString()
-            val accessToken= JwtService.generateToken(isExit.uid)
-            call.respond(UserSession(refreshToken, accessToken))
 
+            call.respond(HttpStatusCode.OK, session)
+        }
+        post("/refreshToken") {
+            val data = call.receive<Info>()
+
+            val hashed = hash(data.token)
+            val tokenRow = dataBaseConfig.getRefreshToken(hashed)
+
+            if (tokenRow == null) {
+                call.respond(HttpStatusCode.Unauthorized)
+                return@post
+            }
+
+            if (tokenRow.expiresAt < System.currentTimeMillis()) {
+                call.respond(HttpStatusCode.Unauthorized, "Expired")
+                return@post
+            }
+
+            if (tokenRow.revoked) {
+                call.respond(HttpStatusCode.Unauthorized, "Revoked")
+                return@post
+            }
+
+            //  CREATE NEW TOKEN
+            val rawToken = generateSecureToken()
+            val newHash = hash(rawToken)
+            val expiresAt = System.currentTimeMillis() + Constants.refeshTokenExpiry
+
+            //  ROTATE (THIS IS THE KEY)
+            dataBaseConfig.rotateToken(
+                oldId = tokenRow.id,
+                newToken = RefreshToken(newHash, tokenRow.uid, expiresAt)
+            )
+
+            val accessToken = JwtService.generateToken(tokenRow.uid)
+
+            call.respond(
+                UserSession(
+                    refreshToken = rawToken,
+                    token = accessToken
+                )
+            )
+        }
+
+
+
+        post("/fcmToken") {
+            println("the fcm fun is called")
+            val data=call.receive<FcmData>() ?: return@post
+            val response=dataBaseConfig.saveFcmToken(data)
+            if(response){
+                println("Successfully saved in!")
+                call.respond(HttpStatusCode.OK)
+            }else{
+                println("Error saving in!")
+                call.respond(HttpStatusCode.NotImplemented)
+            }
         }
 
 
@@ -94,6 +137,34 @@ fun Routing.configAuth(dataBaseConfig: DataBaseConfig) {
     }
 
 
+fun generateSecureToken(): String {
+    val bytes = ByteArray(32)
+    SecureRandom().nextBytes(bytes)
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+}
 
+fun generateSession(
+    uid: String,
+    dataBaseConfig: DataBaseConfig
+): UserSession? {
 
+    val rawToken = generateSecureToken()
+    val tokenHash = hash(rawToken)
+    val expiresAt = System.currentTimeMillis() + Constants.refeshTokenExpiry
 
+    val saved = dataBaseConfig.saveRefreshToken(
+        RefreshToken(tokenHash, uid, expiresAt)
+    )
+
+    if (!saved) {
+        println("Failed to save refresh token")
+        return null
+    }
+
+    val accessToken = JwtService.generateToken(uid)
+
+    return UserSession(
+        refreshToken = rawToken,
+        accessToken
+    )
+}

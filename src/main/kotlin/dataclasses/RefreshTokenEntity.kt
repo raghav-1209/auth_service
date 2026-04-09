@@ -1,11 +1,10 @@
 package com.dataclasses
 
-import kotlinx.serialization.Serializable
-
-@Serializable
-data class RefreshToken(
+data class RefreshTokenEntity(
     val hashToken : String,
     val uid: String,
     val expiresAt: Long,
-
+    val revoked: Boolean,
+    val createdAt :  Long,
+    val  id: Int
 )

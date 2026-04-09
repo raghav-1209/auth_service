@@ -16,7 +16,7 @@ class DataBaseFactory {
         transaction(database) {
             SchemaUtils.create(
                 Tables.users,
-                Tables.jwt_Token,
+                Tables.RefreshTokens,
                 Tables.fcmTokens
             )
 
