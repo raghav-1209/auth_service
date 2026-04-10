@@ -15,6 +15,7 @@ fun Application.module() {
     configResource()
     configStaticResource()
     configStatusPages()
+    configureAuthentication()
     val dataBaseFac= DataBaseFactory()
     dataBaseFac.init()
     val database=dataBaseFac.database

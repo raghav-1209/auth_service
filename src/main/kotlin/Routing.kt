@@ -30,6 +30,14 @@ fun Application.configureRouting(dataBaseConfig: DataBaseConfig) {
         get("/") {
             call.respondText("Hello World!")
         }
+        authenticate("jwt_auth") {
+            post("/check") {
+                println("the check fun called")
+                print(call.request.headers["Authorization"])
+                call.respond(HttpStatusCode.OK)
+            }
+        }
+
         configAuth(dataBaseConfig)
 
     }
@@ -53,27 +61,33 @@ fun Routing.configAuth(dataBaseConfig: DataBaseConfig) {
                     return@post
                 }
 
-                call.respond(HttpStatusCode.OK, session)
+                call.respond( session)
             }catch (e: Exception) {
                 println(e.localizedMessage)
             }
         }
 
         post("/login"){
-            val data=call.receive<LoginData>()
-            val userInfo=dataBaseConfig.getEmail(data.email)
-            if(userInfo==null){
-                call.respond(status = HttpStatusCode.BadRequest, message = "Email is required")
-                return@post
-            }
-            val session = generateSession(userInfo.uid, dataBaseConfig)
+            println("The fun loginc alled")
+            try {
 
-            if (session == null) {
-                call.respond(HttpStatusCode.InternalServerError, "Session creation failed")
-                return@post
-            }
+                val data = call.receive<LoginData>()
+                val userInfo = dataBaseConfig.getEmail(data.email)
+                if (userInfo == null) {
+                    call.respond(status = HttpStatusCode.BadRequest, message = "Email is required")
+                    return@post
+                }
+                val session = generateSession(userInfo.uid, dataBaseConfig)
 
-            call.respond(HttpStatusCode.OK, session)
+                if (session == null) {
+                    call.respond(HttpStatusCode.InternalServerError, "Session creation failed")
+                    return@post
+                }
+
+                call.respond(session)
+            }catch (e: Exception) {
+                println(e.localizedMessage)
+            }
         }
         post("/refreshToken") {
             val data = call.receive<Info>()
