@@ -26,7 +26,6 @@ object Tables {
 
         val createdAt = long("created_at")
 
-        val revoked = bool("revoked").default(false)
 
 
         override val primaryKey = PrimaryKey(id)

@@ -90,8 +90,8 @@ fun Routing.configAuth(dataBaseConfig: DataBaseConfig) {
             }
         }
         post("/refreshToken") {
+            println("The refreshToken fun called")
             val data = call.receive<Info>()
-
             val hashed = hash(data.token)
             val tokenRow = dataBaseConfig.getRefreshToken(hashed)
 
@@ -105,24 +105,10 @@ fun Routing.configAuth(dataBaseConfig: DataBaseConfig) {
                 return@post
             }
 
-            if (tokenRow.revoked) {
-                call.respond(HttpStatusCode.Unauthorized, "Revoked")
-                return@post
-            }
-
-            //  CREATE NEW TOKEN
             val rawToken = generateSecureToken()
             val newHash = hash(rawToken)
             val expiresAt = System.currentTimeMillis() + Constants.refeshTokenExpiry
-
-            //  ROTATE (THIS IS THE KEY)
-            dataBaseConfig.rotateToken(
-                oldId = tokenRow.id,
-                newToken = RefreshToken(newHash, tokenRow.uid, expiresAt)
-            )
-
             val accessToken = JwtService.generateToken(tokenRow.uid)
-
             call.respond(
                 UserSession(
                     refreshToken = rawToken,

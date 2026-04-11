@@ -1,6 +1,5 @@
 package com.databases
 
-import com.databases.Tables.RefreshTokens.revoked
 import com.dataclasses.FcmData
 import com.dataclasses.RefreshToken
 import com.dataclasses.RefreshTokenEntity
@@ -73,7 +72,6 @@ class DataBaseConfig (val database: Database) {
                     it[tokenHash] = tokenData.hashToken
                     it[expiresAt] = tokenData.expiresAt
                     it[createdAt] = System.currentTimeMillis()
-                    it[revoked] = false
                 }
                 true
             } catch (e: Exception) {
@@ -86,7 +84,6 @@ class DataBaseConfig (val database: Database) {
             hashToken = this[Tables.RefreshTokens.tokenHash],
             expiresAt = this[Tables.RefreshTokens.expiresAt],
             uid = this[Tables.RefreshTokens. userUid],
-            revoked = this[Tables.RefreshTokens.revoked],
             createdAt = this[Tables.RefreshTokens.createdAt],
             id = this[Tables.RefreshTokens.id]
 
@@ -103,21 +100,7 @@ class DataBaseConfig (val database: Database) {
         }
     }
 
-    fun rotateToken(oldId: Int, newToken: RefreshToken) {
-        transaction(database) {
-            Tables.RefreshTokens.update({ Tables.RefreshTokens.id eq oldId }) {
-                it[revoked] = true
-            }
 
-            Tables.RefreshTokens.insert {
-                it[userUid] = newToken.uid
-                it[tokenHash] = newToken.hashToken
-                it[expiresAt] = newToken.expiresAt
-                it[createdAt] = System.currentTimeMillis()
-                it[revoked] = false
-            }
-        }
-    }
 
 }
 fun hash(token: String): String {
