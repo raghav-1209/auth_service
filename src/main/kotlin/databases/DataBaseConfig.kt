@@ -7,6 +7,8 @@ import com.dataclasses.SignInData
 import org.h2.engine.User
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -46,6 +48,29 @@ class DataBaseConfig (val database: Database) {
                 .where { Tables.users.email eq email }
                 .singleOrNull()
                 ?.toUser()
+        }
+
+    }
+    fun deleteAllUserTokens(uid: String): Boolean {
+        return transaction(database) {
+            try {
+                Tables.RefreshTokens.deleteWhere {
+                    Tables.RefreshTokens.userUid eq uid
+                } > 0
+            } catch (e: Exception) {
+                false
+            }
+        }
+    }
+    fun deleteRefreshToken(hash: String): Boolean {
+        return transaction(database) {
+            try {
+                Tables.RefreshTokens.deleteWhere {
+                    Tables.RefreshTokens.tokenHash eq hash
+                } > 0
+            } catch (e: Exception) {
+                false
+            }
         }
     }
 

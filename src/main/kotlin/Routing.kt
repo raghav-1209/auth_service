@@ -104,10 +104,18 @@ fun Routing.configAuth(dataBaseConfig: DataBaseConfig) {
                 call.respond(HttpStatusCode.Unauthorized, "Expired")
                 return@post
             }
+            //delete old token
+            dataBaseConfig.deleteRefreshToken(hashed)
+
+
+
 
             val rawToken = generateSecureToken()
             val newHash = hash(rawToken)
             val expiresAt = System.currentTimeMillis() + Constants.refeshTokenExpiry
+            dataBaseConfig.saveRefreshToken(
+                RefreshToken(newHash, tokenRow.uid, expiresAt)
+            )
             val accessToken = JwtService.generateToken(tokenRow.uid)
             call.respond(
                 UserSession(
